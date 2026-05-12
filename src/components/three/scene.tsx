@@ -8,11 +8,14 @@ type SceneProps = {
 };
 
 export function Scene({ scrollProgress }: SceneProps) {
-  // Bloom boost: sine-shaped spike during particle burst onset (scroll 0.42–0.50)
   let bloomBoost = 0;
-  if (scrollProgress >= 0.42 && scrollProgress < 0.50) {
-    const burstT = (scrollProgress - 0.42) / 0.08;
-    bloomBoost = Math.sin(burstT * Math.PI) * 1.2;
+  if (scrollProgress >= 0.38 && scrollProgress < 0.48) {
+    const burstT = (scrollProgress - 0.38) / 0.10;
+    bloomBoost = Math.sin(burstT * Math.PI) * 1.0;
+  }
+  if (scrollProgress >= 0.50 && scrollProgress < 0.62) {
+    const morphT = (scrollProgress - 0.50) / 0.12;
+    bloomBoost = Math.max(bloomBoost, Math.sin(morphT * Math.PI) * 0.8);
   }
 
   return (

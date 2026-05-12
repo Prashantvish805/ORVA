@@ -4,21 +4,18 @@ import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { easeOutQuart, easeInQuad } from "@/lib/utils";
 
 const MODEL_PATH = "/models/dna.glb";
 const TARGET_HEIGHT = 7;
-const PEAK_HEIGHT = 4.5;
-const DROWN_DEPTH = -6;
 
 type DNAModelProps = {
   opacity: number;
   visible: boolean;
-  morphProgress: number;
-  rotationSpeed: number;
+  positionY: number;
+  heightScale: number;
 };
 
-export function DNAModel({ opacity, visible, morphProgress, rotationSpeed }: DNAModelProps) {
+export function DNAModel({ opacity, visible, positionY, heightScale }: DNAModelProps) {
   const groupRef = useRef<THREE.Group>(null);
   const materialsRef = useRef<THREE.MeshStandardMaterial[]>([]);
   const { scene } = useGLTF(MODEL_PATH);
@@ -56,34 +53,18 @@ export function DNAModel({ opacity, visible, morphProgress, rotationSpeed }: DNA
     return clone;
   }, [scene]);
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (!groupRef.current) return;
 
     groupRef.current.visible = visible;
-
     if (!visible) return;
 
-    groupRef.current.rotation.y += delta * rotationSpeed;
-
-    groupRef.current.scale.set(1, 1, 1);
-
-    // Eased vertical movement:
-    //   rise (0->0.5): easeOutQuart -- fast launch, slow near top
-    //   fall (0.5->1): easeInQuad  -- slow start, accelerating gravity
-    let posY: number;
-    if (morphProgress <= 0.5) {
-      const riseT = morphProgress * 2;
-      posY = THREE.MathUtils.lerp(0, PEAK_HEIGHT, easeOutQuart(riseT));
-    } else {
-      const fallT = (morphProgress - 0.5) * 2;
-      posY = THREE.MathUtils.lerp(PEAK_HEIGHT, DROWN_DEPTH, easeInQuad(fallT));
-    }
-    groupRef.current.position.y = posY;
+    groupRef.current.position.y = positionY;
+    groupRef.current.scale.set(1, heightScale, 1);
 
     for (const mat of materialsRef.current) {
       mat.opacity = opacity;
-      mat.emissiveIntensity = 0.8;
-      mat.wireframe = true;
+      mat.emissiveIntensity = THREE.MathUtils.lerp(0.8, 1.5, 1 - opacity);
     }
   });
 

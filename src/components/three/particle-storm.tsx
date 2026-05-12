@@ -13,6 +13,7 @@ type ParticleStormProps = {
   positionY?: number;
   burstPhase?: number;
   fallProgress?: number;
+  morphPhase?: number;
 };
 
 export function ParticleStorm({
@@ -21,13 +22,13 @@ export function ParticleStorm({
   positionY = 0,
   burstPhase = 0,
   fallProgress = 0,
+  morphPhase = 0,
 }: ParticleStormProps) {
   const groupRef = useRef<THREE.Group>(null);
   const pointsRef = useRef<THREE.Points>(null);
   const points2Ref = useRef<THREE.Points>(null);
   const timeRef = useRef(0);
 
-  // Primary: tight cylinder hugging the helix body
   const primary = useMemo(() => {
     const pos = new Float32Array(PARTICLE_COUNT * 3);
     const init = new Float32Array(PARTICLE_COUNT * 3);
@@ -37,7 +38,7 @@ export function ParticleStorm({
       const i3 = i * 3;
       const theta = Math.random() * Math.PI * 2;
       const r = 0.05 + Math.random() * 0.5;
-      const y = Math.random() * 2.0;
+      const y = (Math.random() - 0.5) * 3.0;
 
       init[i3] = r * Math.cos(theta);
       init[i3 + 1] = y;
@@ -55,7 +56,6 @@ export function ParticleStorm({
     return { positions: pos, initialPositions: init, velocities: vel };
   }, []);
 
-  // Secondary: slightly wider halo, still close to the body
   const secondary = useMemo(() => {
     const pos = new Float32Array(SECONDARY_COUNT * 3);
     const init = new Float32Array(SECONDARY_COUNT * 3);
@@ -65,7 +65,7 @@ export function ParticleStorm({
       const i3 = i * 3;
       const theta = Math.random() * Math.PI * 2;
       const r = 0.15 + Math.random() * 0.9;
-      const y = Math.random() * 2.5 - 0.5;
+      const y = (Math.random() - 0.5) * 4.0;
 
       init[i3] = r * Math.cos(theta);
       init[i3 + 1] = y;
@@ -95,12 +95,17 @@ export function ParticleStorm({
     timeRef.current += delta;
     const t = timeRef.current;
 
-    // Contained burst: small radial push, not a screen-wide explosion
+    // morphPhase controls cocoon behavior:
+    //   - tighten radius so particles hug the models
+    //   - stretch vertically to wrap full model height
+    //   - boost size for denser visual coverage
+    const morphTighten = 1 - morphPhase * 0.4;
+    const morphStretch = 1 + morphPhase * 0.8;
+    const morphSizeBoost = morphPhase * 0.07;
+    const morphSpinBoost = morphPhase * 3.0;
+
     const burstExpand = 1 + burstPhase * 0.8;
-
-    // Gentle outward drift at peak, stays tight
-    const spread = intensity * 0.5 * burstExpand;
-
+    const spread = intensity * 0.5 * burstExpand * morphTighten;
     const gravityPull = fallProgress * 3.0;
 
     const geo1 = pointsRef.current.geometry;
@@ -111,49 +116,49 @@ export function ParticleStorm({
       const i3 = i * 3;
       const particleRatio = i / PARTICLE_COUNT;
 
-      arr1[i3] = primary.initialPositions[i3] * burstExpand
+      arr1[i3] = primary.initialPositions[i3] * burstExpand * morphTighten
         + Math.sin(t * primary.velocities[i3] * 0.6 + i * 0.1) * spread;
-      arr1[i3 + 1] = primary.initialPositions[i3 + 1]
+      arr1[i3 + 1] = primary.initialPositions[i3 + 1] * morphStretch
         - gravityPull * (0.4 + particleRatio * 0.6)
         + Math.sin(t * 0.4 + i * 0.03) * intensity * 0.2;
-      arr1[i3 + 2] = primary.initialPositions[i3 + 2] * burstExpand
+      arr1[i3 + 2] = primary.initialPositions[i3 + 2] * burstExpand * morphTighten
         + Math.cos(t * primary.velocities[i3 + 2] * 0.6 + i * 0.1) * spread;
     }
 
     posAttr1.needsUpdate = true;
-    pointsRef.current.rotation.y += delta * intensity * 1.5;
+    pointsRef.current.rotation.y += delta * (intensity * 1.5 + morphSpinBoost);
 
     const mat1 = pointsRef.current.material as THREE.PointsMaterial;
-    mat1.opacity = intensity * 0.9;
+    mat1.opacity = intensity * (0.9 + morphPhase * 0.1);
     mat1.size = THREE.MathUtils.lerp(0.03, 0.10, intensity)
-      + burstPhase * 0.04;
+      + burstPhase * 0.04 + morphSizeBoost;
 
     const geo2 = points2Ref.current.geometry;
     const posAttr2 = geo2.attributes.position as THREE.BufferAttribute;
     const arr2 = posAttr2.array as Float32Array;
 
-    const drift = intensity * 0.7 * burstExpand;
+    const drift = intensity * 0.7 * burstExpand * morphTighten;
 
     for (let i = 0; i < SECONDARY_COUNT; i++) {
       const i3 = i * 3;
       const particleRatio = i / SECONDARY_COUNT;
 
-      arr2[i3] = secondary.initialPositions[i3] * burstExpand
+      arr2[i3] = secondary.initialPositions[i3] * burstExpand * morphTighten
         + Math.cos(t * secondary.velocities[i3] * 0.4 + i * 0.15) * drift;
-      arr2[i3 + 1] = secondary.initialPositions[i3 + 1]
+      arr2[i3 + 1] = secondary.initialPositions[i3 + 1] * morphStretch
         - gravityPull * (0.3 + particleRatio * 0.5)
         + Math.sin(t * 0.25 + i * 0.02) * intensity * 0.3;
-      arr2[i3 + 2] = secondary.initialPositions[i3 + 2] * burstExpand
+      arr2[i3 + 2] = secondary.initialPositions[i3 + 2] * burstExpand * morphTighten
         + Math.sin(t * secondary.velocities[i3 + 2] * 0.4 + i * 0.15) * drift;
     }
 
     posAttr2.needsUpdate = true;
-    points2Ref.current.rotation.y -= delta * intensity * 1.0;
+    points2Ref.current.rotation.y -= delta * (intensity * 1.0 + morphSpinBoost * 0.7);
 
     const mat2 = points2Ref.current.material as THREE.PointsMaterial;
-    mat2.opacity = intensity * 0.65;
+    mat2.opacity = intensity * (0.65 + morphPhase * 0.15);
     mat2.size = THREE.MathUtils.lerp(0.05, 0.14, intensity)
-      + burstPhase * 0.05;
+      + burstPhase * 0.05 + morphSizeBoost;
   });
 
   return (

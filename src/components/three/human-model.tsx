@@ -4,7 +4,6 @@ import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
-import { easeOutCubic } from "@/lib/utils";
 
 const MODEL_PATH = "/models/human.glb";
 const TARGET_HEIGHT = 5;
@@ -12,11 +11,9 @@ const TARGET_HEIGHT = 5;
 type HumanModelProps = {
   opacity: number;
   visible: boolean;
-  revealProgress: number;
-  rotationSpeed: number;
 };
 
-export function HumanModel({ opacity, visible, revealProgress, rotationSpeed }: HumanModelProps) {
+export function HumanModel({ opacity, visible }: HumanModelProps) {
   const groupRef = useRef<THREE.Group>(null);
   const materialsRef = useRef<THREE.MeshStandardMaterial[]>([]);
   const { scene } = useGLTF(MODEL_PATH);
@@ -54,23 +51,15 @@ export function HumanModel({ opacity, visible, revealProgress, rotationSpeed }: 
     return clone;
   }, [scene]);
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (!groupRef.current) return;
 
     groupRef.current.visible = visible;
-
     if (!visible) return;
-
-    groupRef.current.rotation.y += delta * rotationSpeed;
-
-    // Rise from below the screen upward through the smoke
-    const eased = easeOutCubic(revealProgress);
-    groupRef.current.position.y = THREE.MathUtils.lerp(-6, 0, eased);
-    groupRef.current.scale.set(1, 1, 1);
 
     for (const mat of materialsRef.current) {
       mat.opacity = opacity;
-      mat.emissiveIntensity = THREE.MathUtils.lerp(3.0, 0.8, revealProgress);
+      mat.emissiveIntensity = THREE.MathUtils.lerp(2.5, 0.8, opacity);
     }
   });
 
