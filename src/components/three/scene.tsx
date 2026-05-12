@@ -9,13 +9,13 @@ type SceneProps = {
 
 export function Scene({ scrollProgress }: SceneProps) {
   let bloomBoost = 0;
-  if (scrollProgress >= 0.38 && scrollProgress < 0.48) {
-    const burstT = (scrollProgress - 0.38) / 0.10;
-    bloomBoost = Math.sin(burstT * Math.PI) * 1.0;
+  if (scrollProgress >= 0.44 && scrollProgress < 0.54) {
+    const dissolveT = (scrollProgress - 0.44) / 0.10;
+    bloomBoost = Math.sin(dissolveT * Math.PI) * 1.0;
   }
-  if (scrollProgress >= 0.50 && scrollProgress < 0.62) {
-    const morphT = (scrollProgress - 0.50) / 0.12;
-    bloomBoost = Math.max(bloomBoost, Math.sin(morphT * Math.PI) * 0.8);
+  if (scrollProgress >= 0.54 && scrollProgress < 0.70) {
+    const morphT = (scrollProgress - 0.54) / 0.16;
+    bloomBoost = Math.max(bloomBoost, Math.sin(morphT * Math.PI) * 1.2);
   }
 
   return (

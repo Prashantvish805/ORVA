@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { easeOutQuart, easeInQuad } from "@/lib/utils";
 import { DNAModel } from "./dna-model";
 import { HumanModel } from "./human-model";
-import { ParticleStorm } from "./particle-storm";
+import { MorphParticles } from "./morph-particles";
 
 type ModelControllerProps = {
   scrollProgress: number;
@@ -21,18 +21,18 @@ export function ModelController({ scrollProgress }: ModelControllerProps) {
   const { camera } = useThree();
 
   // ─── ROTATION ───────────────────────────────────────────
-  // Shared spin applied to a parent group — both models rotate as one object.
-  // Base → Max during rise, hold max through morph, ease back after.
+  // Shared spin on the parent group. Both meshes + morph particles inherit it.
+  // Fast spin through the entire morph sells the metamorphosis illusion.
   let rotationSpeed: number;
   if (scrollProgress < 0.10) {
     rotationSpeed = BASE_ROTATION;
   } else if (scrollProgress < 0.28) {
     const t = (scrollProgress - 0.10) / 0.18;
     rotationSpeed = THREE.MathUtils.lerp(BASE_ROTATION, MAX_ROTATION, easeOutQuart(t));
-  } else if (scrollProgress < 0.62) {
+  } else if (scrollProgress < 0.66) {
     rotationSpeed = MAX_ROTATION;
-  } else if (scrollProgress < 0.78) {
-    const t = (scrollProgress - 0.62) / 0.16;
+  } else if (scrollProgress < 0.80) {
+    const t = (scrollProgress - 0.66) / 0.14;
     rotationSpeed = THREE.MathUtils.lerp(MAX_ROTATION, BASE_ROTATION, t);
   } else {
     rotationSpeed = BASE_ROTATION;
@@ -50,12 +50,10 @@ export function ModelController({ scrollProgress }: ModelControllerProps) {
     camera.lookAt(0, 0, 0);
   });
 
-  // ─── DNA ───────────────────────────────────────────────
-  // Rise:  0.10→0.28  (y: 0 → peak)
-  // Stall: 0.28→0.38  (holds at peak, spinning fast)
-  // Fall:  0.38→0.50  (y: peak → 0, height shrinks to 80%)
-  // Morph: 0.50→0.65  (opacity crossfade out while at center)
-  const showDNA = scrollProgress < 0.68;
+  // ─── DNA WIREFRAME ─────────────────────────────────────
+  // Rise → stall at peak → fall back to center → dissolve into particles.
+  // Fall + shrink finish at 0.46 so DNA is at center when particles take over.
+  const showDNA = scrollProgress < 0.54;
 
   let dnaPositionY: number;
   if (scrollProgress < 0.10) {
@@ -65,8 +63,8 @@ export function ModelController({ scrollProgress }: ModelControllerProps) {
     dnaPositionY = THREE.MathUtils.lerp(0, PEAK_HEIGHT, easeOutQuart(t));
   } else if (scrollProgress < 0.38) {
     dnaPositionY = PEAK_HEIGHT;
-  } else if (scrollProgress < 0.50) {
-    const t = (scrollProgress - 0.38) / 0.12;
+  } else if (scrollProgress < 0.46) {
+    const t = (scrollProgress - 0.38) / 0.08;
     dnaPositionY = THREE.MathUtils.lerp(PEAK_HEIGHT, 0, easeInQuad(t));
   } else {
     dnaPositionY = 0;
@@ -75,80 +73,67 @@ export function ModelController({ scrollProgress }: ModelControllerProps) {
   let dnaHeightScale: number;
   if (scrollProgress < 0.38) {
     dnaHeightScale = 1.0;
-  } else if (scrollProgress < 0.50) {
-    const t = (scrollProgress - 0.38) / 0.12;
+  } else if (scrollProgress < 0.46) {
+    const t = (scrollProgress - 0.38) / 0.08;
     dnaHeightScale = THREE.MathUtils.lerp(1.0, 0.8, t);
   } else {
     dnaHeightScale = 0.8;
   }
 
-  const dnaOpacity = scrollProgress < 0.50
+  // DNA wireframe fades as particles appear in the same shape
+  const dnaOpacity = scrollProgress < 0.46
     ? 1
-    : THREE.MathUtils.clamp(1 - (scrollProgress - 0.50) / 0.15, 0, 1);
+    : THREE.MathUtils.clamp(1 - (scrollProgress - 0.46) / 0.08, 0, 1);
 
-  // ─── HUMAN ─────────────────────────────────────────────
-  // Fades in exactly as DNA fades out — same spin group, same center.
-  // The spinning object "becomes" the human.
-  const showHuman = scrollProgress > 0.48;
-  const humanOpacity = scrollProgress < 0.50
+  // ─── MORPH PARTICLES ───────────────────────────────────
+  // The transition medium: DNA surface points → scattered cloud → Human surface points.
+  // Particles appear as DNA dissolves, hold during scatter, fade as Human solidifies.
+  const showMorphParticles = scrollProgress > 0.44 && scrollProgress < 0.74;
+
+  let morphParticleOpacity: number;
+  if (scrollProgress < 0.44) {
+    morphParticleOpacity = 0;
+  } else if (scrollProgress < 0.50) {
+    morphParticleOpacity = (scrollProgress - 0.44) / 0.06;
+  } else if (scrollProgress < 0.68) {
+    morphParticleOpacity = 1;
+  } else if (scrollProgress < 0.74) {
+    morphParticleOpacity = 1 - (scrollProgress - 0.68) / 0.06;
+  } else {
+    morphParticleOpacity = 0;
+  }
+
+  // morphProgress: 0 = DNA shape, 1 = Human shape
+  const morphProgress = scrollProgress < 0.50
     ? 0
-    : THREE.MathUtils.clamp((scrollProgress - 0.50) / 0.15, 0, 1);
+    : scrollProgress > 0.68
+      ? 1
+      : (scrollProgress - 0.50) / 0.18;
 
-  // ─── PARTICLES ─────────────────────────────────────────
-  // Appear during fall, peak during morph (masking the swap), fade after.
-  const showStorm = scrollProgress > 0.36 && scrollProgress < 0.72;
-  let stormIntensity: number;
-  if (scrollProgress < 0.36) {
-    stormIntensity = 0;
-  } else if (scrollProgress < 0.46) {
-    stormIntensity = THREE.MathUtils.clamp((scrollProgress - 0.36) / 0.10, 0, 1);
-  } else if (scrollProgress < 0.60) {
-    stormIntensity = 1.0;
-  } else if (scrollProgress < 0.72) {
-    stormIntensity = THREE.MathUtils.clamp(1 - (scrollProgress - 0.60) / 0.12, 0, 1);
-  } else {
-    stormIntensity = 0;
-  }
-
-  const burstPhase = scrollProgress >= 0.38 && scrollProgress < 0.48
-    ? THREE.MathUtils.clamp((scrollProgress - 0.38) / 0.10, 0, 1)
-    : 0;
-
-  // morphPhase drives the tight vortex cocoon effect during the swap
-  let morphPhase: number;
-  if (scrollProgress < 0.48) {
-    morphPhase = 0;
-  } else if (scrollProgress < 0.52) {
-    morphPhase = (scrollProgress - 0.48) / 0.04;
-  } else if (scrollProgress < 0.60) {
-    morphPhase = 1.0;
-  } else if (scrollProgress < 0.66) {
-    morphPhase = 1 - (scrollProgress - 0.60) / 0.06;
-  } else {
-    morphPhase = 0;
-  }
+  // ─── HUMAN WIREFRAME ───────────────────────────────────
+  // Solidifies from particles — fades in as morph particles converge on Human shape.
+  const showHuman = scrollProgress > 0.64;
+  const humanOpacity = scrollProgress < 0.66
+    ? 0
+    : THREE.MathUtils.clamp((scrollProgress - 0.66) / 0.08, 0, 1);
 
   return (
-    <group>
-      <group ref={spinRef}>
-        <DNAModel
-          opacity={dnaOpacity}
-          visible={showDNA}
-          positionY={dnaPositionY}
-          heightScale={dnaHeightScale}
-        />
-        <HumanModel
-          opacity={humanOpacity}
-          visible={showHuman}
-        />
-      </group>
-      <ParticleStorm
-        visible={showStorm}
-        intensity={stormIntensity}
+    <group ref={spinRef}>
+      <DNAModel
+        opacity={dnaOpacity}
+        visible={showDNA}
         positionY={dnaPositionY}
-        burstPhase={burstPhase}
-        fallProgress={0}
-        morphPhase={morphPhase}
+        heightScale={dnaHeightScale}
+      />
+      <MorphParticles
+        visible={showMorphParticles}
+        morphProgress={morphProgress}
+        opacity={morphParticleOpacity}
+        dnaHeightScale={dnaHeightScale}
+      />
+      <HumanModel
+        opacity={humanOpacity}
+        visible={showHuman}
       />
     </group>
   );
